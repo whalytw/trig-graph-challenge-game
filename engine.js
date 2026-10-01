@@ -2,21 +2,31 @@
 'use strict';
 const PI=Math.PI, XMIN=-2*PI,XMAX=2*PI,YMAX=6;
 const transforms=['horizontalShift','horizontalScale','verticalScale','verticalShift'];
-const timeDefaults=[30,40,50,60,80,100];
-const defaults={theme:'light',gridColor:'#dce5f0',gridWidth:1,seatMin:1,seatMax:30,levels:Array.from({length:6},(_,i)=>({count:1,seconds:timeDefaults[i],types:['sin','cos','tan'],transforms:[...transforms],enabled:true}))};
+const timeDefaults=[40,60,80,100,100,120],countDefaults=[1,1,1,0,0,1];
+const defaults={version:2,theme:'dark',gridColor:'#2a3b54',gridWidth:1.5,seatMin:1,seatMax:30,levels:Array.from({length:6},(_,i)=>({count:countDefaults[i],seconds:timeDefaults[i],types:['sin','cos','tan'],transforms:[...transforms],enabled:true}))};
 const clone=x=>JSON.parse(JSON.stringify(x));
 function normalizeSettings(saved){
  const s={...clone(defaults),...saved};
  s.levels=defaults.levels.map((level,i)=>({...clone(level),...(saved?.levels?.[i]||{})}));
+ // Upgrade former defaults once, keeping values that teachers customized.
+ if(saved&&saved.version!==2){
+  if(saved.theme==='light')s.theme='dark';
+  if(saved.gridColor==='#dce5f0')s.gridColor='#2a3b54';
+  if(saved.gridWidth===1)s.gridWidth=1.5;
+  const formerTimes=[30,40,50,60,80,100];
+  s.levels.forEach((level,i)=>{if(saved.levels?.[i]?.seconds===formerTimes[i])level.seconds=timeDefaults[i];});
+  if(saved.levels?.every(level=>level.count===1))s.levels.forEach((level,i)=>level.count=countDefaults[i]);
+ }
+ s.version=2;
  delete s.passScore;return s;
 }
 function graphRange(q){
  if(!q)return {min:-6,max:6,step:1};
  const amplitude=q.kind==='sum'?Math.hypot(q.a,q.c):Math.abs(q.a),center=q.d||0;
  const half=q.type==='tan'?Math.max(2,amplitude*2):amplitude;
- const pad=q.type==='tan'?.5:Math.max(.5,Math.ceil(amplitude*.25*2)/2);
- let min=Math.floor((Math.min(0,center-half)-pad)*2)/2;
- let max=Math.ceil((Math.max(0,center+half)+pad)*2)/2;
+ const pad=q.type==='tan'?.5:Math.max(.5,Math.ceil(amplitude*.25*2-1e-9)/2);
+ let min=Math.floor((Math.min(0,center-half)-pad)*2+1e-9)/2;
+ let max=Math.ceil((Math.max(0,center+half)+pad)*2-1e-9)/2;
  const step=max-min<=5?.5:1;
  if(step===1){min=Math.floor(min);max=Math.ceil(max);}
  return {min,max,step};
@@ -92,6 +102,30 @@ const n=512,bins=Array.from({length:n+1},()=>[]);
 for(let s of strokes)for(let i=1;i<s.length;i++){const a=s[i-1],b=s[i],lo=Math.max(0,Math.ceil((Math.min(a.x,b.x)-XMIN)/(XMAX-XMIN)*n)),hi=Math.min(n,Math.floor((Math.max(a.x,b.x)-XMIN)/(XMAX-XMIN)*n));if(Math.abs(b.x-a.x)<.0001){const k=Math.round((a.x-XMIN)/(XMAX-XMIN)*n);if(k>=0&&k<=n){let steps=Math.max(1,Math.ceil(Math.abs(b.y-a.y)/(.2*unit)));for(let j=0;j<=steps;j++)bins[k].push(a.y+(b.y-a.y)*j/steps);}}else for(let k=lo;k<=hi;k++){let x=XMIN+k/n*(XMAX-XMIN);bins[k].push(a.y+(b.y-a.y)*(x-a.x)/(b.x-a.x));}}
 return bins.some(ys=>mergeYs(ys,.18*unit).length>6);
 }
+function createInkTracker(strokes=[],range={min:-6,max:6}){
+ const n=512,span=XMAX-XMIN,unit=(range.max-range.min)/12;
+ const bins=Array.from({length:n+1},()=>[]),over=Array(n+1).fill(false);
+ let total=0,overCount=0;
+ function refresh(k){const next=mergeYs(bins[k],.18*unit).length>6;if(next!==over[k]){overCount+=next?1:-1;over[k]=next;}}
+ function addSegment(a,b,initializing=false){
+  total+=Math.hypot((b.x-a.x)/span*600,(b.y-a.y)/(range.max-range.min)*500);
+  const lo=Math.max(0,Math.ceil((Math.min(a.x,b.x)-XMIN)/span*n)),hi=Math.min(n,Math.floor((Math.max(a.x,b.x)-XMIN)/span*n));
+  if(Math.abs(b.x-a.x)<.0001){
+   const k=Math.round((a.x-XMIN)/span*n);
+   if(k>=0&&k<=n){const steps=Math.max(1,Math.ceil(Math.abs(b.y-a.y)/(.2*unit)));for(let j=0;j<=steps;j++)bins[k].push(a.y+(b.y-a.y)*j/steps);if(!initializing)refresh(k);}
+  }else for(let k=lo;k<=hi;k++){const x=XMIN+k/n*span;bins[k].push(a.y+(b.y-a.y)*(x-a.x)/(b.x-a.x));if(!initializing)refresh(k);}
+ }
+ for(const stroke of strokes)for(let i=1;i<stroke.length;i++)addSegment(stroke[i-1],stroke[i],true);
+ bins.forEach((_,k)=>refresh(k));
+ return {addSegment,get length(){return total;},get tooMany(){return overCount>0;}};
+}
+function eraseSweep(strokes,from,to,radius,range={min:-6,max:6}){
+ const sx=600/(XMAX-XMIN),sy=500/(range.max-range.min),ax=from.x*sx,ay=from.y*sy,bx=to.x*sx,by=to.y*sy;
+ const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy,out=[];
+ for(const stroke of strokes){let path=[];for(const p of stroke){const px=p.x*sx,py=p.y*sy,t=len2?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len2)):0;
+  if(Math.hypot(px-ax-t*dx,py-ay-t*dy)<=radius){if(path.length>1)out.push(path);path=[];}else path.push(p);
+ }if(path.length>1)out.push(path);}return out;
+}
 function erase(strokes,center,radius,range={min:-6,max:6}){let out=[];for(let stroke of strokes){let path=[];for(let p of stroke){if(Math.hypot((p.x-center.x)/(XMAX-XMIN)*600,(p.y-center.y)/(range.max-range.min)*500)<=radius){if(path.length>1)out.push(path);path=[];}else path.push(p);}if(path.length>1)out.push(path);}return out;}
-const api={PI,XMIN,XMAX,YMAX,transforms,defaults,timeDefaults,clone,normalizeSettings,graphRange,formula,evaluate,questionPool,signature,selectQuestion,validate,buildPlan,score,intersections,sampleXs,length,targetPaths,inkBudget,tooManyYs,erase};root.TrigEngine=api;if(typeof module!=='undefined')module.exports=api;
+const api={PI,XMIN,XMAX,YMAX,transforms,defaults,timeDefaults,clone,normalizeSettings,graphRange,formula,evaluate,questionPool,signature,selectQuestion,validate,buildPlan,score,intersections,sampleXs,length,targetPaths,inkBudget,tooManyYs,createInkTracker,erase,eraseSweep};root.TrigEngine=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
