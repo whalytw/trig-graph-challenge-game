@@ -14,3 +14,6 @@
 
 /* v1.2: activate each lane independently on contact, including secondary touches. */
 .toolbar button,.submit,.overlay button{touch-action:none}.toolbar button.pressed,.submit.pressed,.overlay button.pressed{filter:brightness(1.2);box-shadow:inset 0 0 0 3px var(--accent)}a{color:var(--primary)}body[data-theme=dark] a{color:#aaa4ff}
+
+/* v1.4: keep the rescue card alongside the three drawing tools. */
+.toolbar .help-card{background:#fae6f0;color:#92314e;border-color:#e7b7c8;white-space:nowrap;font-size:clamp(11px,1vw,18px)}body[data-theme=dark] .toolbar .help-card{background:#41293b;color:#ffc1d0;border-color:#755062}.toolbar .help-card[hidden]{display:none}.toolbar .help-card:disabled{opacity:.55}
