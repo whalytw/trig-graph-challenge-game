@@ -17,3 +17,8 @@
 
 /* v1.4: keep the rescue card alongside the three drawing tools. */
 .toolbar .help-card{background:#fae6f0;color:#92314e;border-color:#e7b7c8;white-space:nowrap;font-size:clamp(11px,1vw,18px)}body[data-theme=dark] .toolbar .help-card{background:#41293b;color:#ffc1d0;border-color:#755062}.toolbar .help-card[hidden]{display:none}.toolbar .help-card:disabled{opacity:.55}
+
+/* v1.5: earned cards light up; waiting cards display their own countdown. */
+.toolbar .help-card{font-variant-numeric:tabular-nums;transition:background .2s,box-shadow .2s,color .2s}
+.toolbar .help-card.help-ready{background:#fbcfe0;color:#802644;border-color:#db6791;box-shadow:0 0 0 1px #ed90b1,0 0 13px #ec48993b}
+body[data-theme=dark] .toolbar .help-card.help-ready{background:#793e5a;color:#fff0f5;border-color:#f49bbd;box-shadow:0 0 0 1px #f49bbd,0 0 16px #f472b65c}

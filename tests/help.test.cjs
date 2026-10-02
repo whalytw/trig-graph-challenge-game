@@ -36,4 +36,24 @@ let found=false;for(let offset=.13;offset<.9;offset+=.0005){
 for(const max of [0,1,2,3]){const s=E.clone(E.defaults);s.helpCards=max;assert.equal(E.validate(s).length,0);}
 const bad=E.clone(E.defaults);bad.helpCards=4;assert(E.validate(bad).length>0);
 const legacy=E.clone(E.defaults);delete legacy.helpCards;assert.equal(E.normalizeSettings(legacy).helpCards,3);
-console.log('通過：求救區間不重複、線段裁切與邊界鎖定、三類函數揭示、倍率與最後四捨五入、設定移轉。');
+delete legacy.helpFirstDelay;delete legacy.helpInterval;
+const migrated=E.normalizeSettings(legacy);assert.equal(migrated.helpFirstDelay,15);assert.equal(migrated.helpInterval,10);
+// Issued cards are based on elapsed question time, not the time of the last use.
+for(const [seconds,issued] of [[0,0],[14.999,0],[15,1],[24.999,1],[25,2],[34.999,2],[35,3],[300,3]]){
+ const state=E.helpState(E.defaults,seconds);assert.equal(state.issued,issued);assert.equal(state.available,issued);
+}
+assert.deepEqual(E.helpState(E.defaults,15,1),{issued:1,available:0,nextIn:10});
+assert.deepEqual(E.helpState(E.defaults,25,1),{issued:2,available:1,nextIn:10});
+assert.deepEqual(E.helpState(E.defaults,35,1),{issued:3,available:2,nextIn:null});
+assert.deepEqual(E.helpState(E.defaults,300,3),{issued:3,available:0,nextIn:null});
+assert.deepEqual(E.helpState({...E.defaults,helpCards:0},300),{issued:0,available:0,nextIn:null});
+assert.deepEqual(E.helpState({...E.defaults,helpCards:1},15),{issued:1,available:1,nextIn:null});
+assert.deepEqual(E.helpState({...E.defaults,helpFirstDelay:0,helpInterval:7},14),{issued:3,available:3,nextIn:null});
+assert.deepEqual(E.helpState({...E.defaults,helpFirstDelay:9,helpInterval:6},20),{issued:2,available:2,nextIn:1});
+for(const [field,values] of [['helpFirstDelay',[-1,301,1.5]],['helpInterval',[0,-1,301,1.5]]])for(const value of values){
+ const s=E.clone(E.defaults);s[field]=value;assert(E.validate(s).length>0);
+}
+for(const [delay,interval] of [[0,1],[15,10],[300,300]]){
+ const s={...E.defaults,helpFirstDelay:delay,helpInterval:interval};assert.equal(E.validate(s).length,0);
+}
+console.log('通過：定時發卡與累積上限、設定與移轉、區間不重複、筆跡鎖定、三類函數揭示、倍率與最後四捨五入。');

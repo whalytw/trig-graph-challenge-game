@@ -3,7 +3,7 @@
 const PI=Math.PI, XMIN=-2*PI,XMAX=2*PI,YMAX=6;
 const transforms=['horizontalShift','horizontalScale','verticalScale','verticalShift'];
 const timeDefaults=[40,60,80,100,100,120],countDefaults=[1,1,1,0,0,1];
-const defaults={version:2,theme:'dark',gridColor:'#2a3b54',gridWidth:1.5,axisFontSize:16,axisLabelColor:'#a8b9cf',helpCards:3,seatMin:1,seatMax:30,levels:Array.from({length:6},(_,i)=>({count:countDefaults[i],seconds:timeDefaults[i],types:['sin','cos','tan'],transforms:[...transforms],enabled:true}))};
+const defaults={version:2,theme:'dark',gridColor:'#2a3b54',gridWidth:1.5,axisFontSize:16,axisLabelColor:'#a8b9cf',helpCards:3,helpFirstDelay:15,helpInterval:10,seatMin:1,seatMax:30,levels:Array.from({length:6},(_,i)=>({count:countDefaults[i],seconds:timeDefaults[i],types:['sin','cos','tan'],transforms:[...transforms],enabled:true}))};
 const clone=x=>JSON.parse(JSON.stringify(x));
 function normalizeSettings(saved){
  const s={...clone(defaults),...saved};
@@ -54,6 +54,8 @@ function selectQuestion(star,level,avoid=[],rng=Math.random){const pool=question
 function validate(s){
  let errors=[];
  if(!Number.isInteger(s.helpCards)||s.helpCards<0||s.helpCards>3)errors.push('每題求救卡需設定為 0～3 張。');
+ if(!Number.isInteger(s.helpFirstDelay)||s.helpFirstDelay<0||s.helpFirstDelay>300)errors.push('首張求救卡等待需為 0～300 秒的整數。');
+ if(!Number.isInteger(s.helpInterval)||s.helpInterval<1||s.helpInterval>300)errors.push('後續求救卡間隔需為 1～300 秒的整數。');
  if(!Number.isInteger(s.axisFontSize)||s.axisFontSize<10||s.axisFontSize>28)errors.push('座標標示文字大小需為 10～28 px 的整數。');
  if(!/^#[0-9a-f]{6}$/i.test(s.axisLabelColor))errors.push('請選擇有效的座標標示文字顏色。');
  if(!Number.isInteger(s.seatMin)||!Number.isInteger(s.seatMax)||s.seatMin<1||s.seatMax>99||s.seatMax<s.seatMin)errors.push('座號範圍需介於 1～99，終點不可小於起點。');
@@ -74,6 +76,12 @@ function buildPlan(s){return s.levels.flatMap((l,i)=>i===5&&!l.enabled?[]:Array.
 function mergeYs(ys,tolerance=.16){let a=ys.filter(Number.isFinite).sort((a,b)=>a-b),out=[];for(let y of a){if(!out.length||y-out[out.length-1]>tolerance)out.push(y);else out[out.length-1]=(out[out.length-1]+y)/2;}return out;}
 function intersections(strokes,x,tolerance=.16){let ys=[];for(let stroke of strokes){if(stroke.length===1&&Math.abs(stroke[0].x-x)<.018)ys.push(stroke[0].y);for(let i=1;i<stroke.length;i++){let a=stroke[i-1],b=stroke[i];if(x<Math.min(a.x,b.x)-1e-9||x>Math.max(a.x,b.x)+1e-9)continue;if(Math.abs(b.x-a.x)<1e-9){ys.push(a.y,b.y,(a.y+b.y)/2);}else ys.push(a.y+(b.y-a.y)*(x-a.x)/(b.x-a.x));}}return mergeYs(ys,tolerance);}
 function sampleXs(){return Array.from({length:40},(_,i)=>XMIN+(i+.5)*(XMAX-XMIN)/40);}
+// Cards arrive on the question's fixed schedule, independent of when they are spent.
+function helpState(config,elapsedSeconds,used=0){
+ const elapsed=Math.max(0,elapsedSeconds),limit=config.helpCards;
+ const issued=Math.min(limit,elapsed<config.helpFirstDelay?0:1+Math.floor((elapsed-config.helpFirstDelay)/config.helpInterval));
+ return {issued,available:Math.max(0,issued-used),nextIn:issued<limit?Math.max(0,config.helpFirstDelay+issued*config.helpInterval-elapsed):null};
+}
 function helpBounds(index){return {min:XMIN+index*PI/2,max:XMIN+(index+1)*PI/2};}
 function isHelpX(x,intervals=[]){return intervals.some(i=>{const b=helpBounds(i);return x>=b.min&&x<=b.max;});}
 function nextHelpInterval(used=[],rng=Math.random){const available=Array.from({length:8},(_,i)=>i).filter(i=>!used.includes(i));return available.length?available[Math.min(available.length-1,Math.floor(rng()*available.length))]:null;}
@@ -163,5 +171,5 @@ function eraseSweep(strokes,from,to,radius,range={min:-6,max:6}){
  }if(path.length>1)out.push(path);}return out;
 }
 function erase(strokes,center,radius,range={min:-6,max:6}){let out=[];for(let stroke of strokes){let path=[];for(let p of stroke){if(Math.hypot((p.x-center.x)/(XMAX-XMIN)*600,(p.y-center.y)/(range.max-range.min)*500)<=radius){if(path.length>1)out.push(path);path=[];}else path.push(p);}if(path.length>1)out.push(path);}return out;}
-const api={PI,XMIN,XMAX,YMAX,transforms,defaults,timeDefaults,clone,normalizeSettings,graphRange,formula,evaluate,questionPool,signature,selectQuestion,validate,buildPlan,score,intersections,sampleXs,helpBounds,isHelpX,nextHelpInterval,openSegments,clipStrokes,helpPaths,length,targetPaths,inkBudget,tooManyYs,createInkTracker,erase,eraseSweep};root.TrigEngine=api;if(typeof module!=='undefined')module.exports=api;
+const api={PI,XMIN,XMAX,YMAX,transforms,defaults,timeDefaults,clone,normalizeSettings,graphRange,formula,evaluate,questionPool,signature,selectQuestion,validate,buildPlan,score,intersections,sampleXs,helpState,helpBounds,isHelpX,nextHelpInterval,openSegments,clipStrokes,helpPaths,length,targetPaths,inkBudget,tooManyYs,createInkTracker,erase,eraseSweep};root.TrigEngine=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
