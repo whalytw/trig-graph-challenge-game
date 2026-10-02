@@ -3,7 +3,7 @@
 const PI=Math.PI, XMIN=-2*PI,XMAX=2*PI,YMAX=6;
 const transforms=['horizontalShift','horizontalScale','verticalScale','verticalShift'];
 const timeDefaults=[40,60,80,100,100,120],countDefaults=[1,1,1,0,0,1];
-const defaults={version:2,theme:'dark',gridColor:'#2a3b54',gridWidth:1.5,seatMin:1,seatMax:30,levels:Array.from({length:6},(_,i)=>({count:countDefaults[i],seconds:timeDefaults[i],types:['sin','cos','tan'],transforms:[...transforms],enabled:true}))};
+const defaults={version:2,theme:'dark',gridColor:'#2a3b54',gridWidth:1.5,axisFontSize:16,axisLabelColor:'#a8b9cf',seatMin:1,seatMax:30,levels:Array.from({length:6},(_,i)=>({count:countDefaults[i],seconds:timeDefaults[i],types:['sin','cos','tan'],transforms:[...transforms],enabled:true}))};
 const clone=x=>JSON.parse(JSON.stringify(x));
 function normalizeSettings(saved){
  const s={...clone(defaults),...saved};
@@ -18,6 +18,7 @@ function normalizeSettings(saved){
   if(saved.levels?.every(level=>level.count===1))s.levels.forEach((level,i)=>level.count=countDefaults[i]);
  }
  s.version=2;
+ if(!saved?.axisLabelColor)s.axisLabelColor=s.theme==='dark'?'#a8b9cf':'#65778c';
  delete s.passScore;return s;
 }
 function graphRange(q){
@@ -52,6 +53,8 @@ function signature(q){return [q.kind,q.type,q.a,q.b,q.h,q.d,q.c].join('|');}
 function selectQuestion(star,level,avoid=[],rng=Math.random){const pool=questionPool(star,level),filtered=pool.filter(q=>!avoid.includes(signature(q))),choices=filtered.length?filtered:pool;if(!choices.length)throw Error('沒有可用題目');return {...choices[Math.floor(rng()*choices.length)]};}
 function validate(s){
  let errors=[];
+ if(!Number.isInteger(s.axisFontSize)||s.axisFontSize<10||s.axisFontSize>28)errors.push('座標標示文字大小需為 10～28 px 的整數。');
+ if(!/^#[0-9a-f]{6}$/i.test(s.axisLabelColor))errors.push('請選擇有效的座標標示文字顏色。');
  if(!Number.isInteger(s.seatMin)||!Number.isInteger(s.seatMax)||s.seatMin<1||s.seatMax>99||s.seatMax<s.seatMin)errors.push('座號範圍需介於 1～99，終點不可小於起點。');
  let total=0;
  for(let i=0;i<6;i++){
